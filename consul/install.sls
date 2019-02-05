@@ -55,6 +55,66 @@ consul-download:
     - source_hash: https://releases.hashicorp.com/consul/{{ consul.version }}/consul_{{ consul.version }}_SHA256SUMS
     - unless: test -f /usr/local/bin/consul-{{ consul.version }}
 
+# Verify Signature
+{% if consul.secure_download -%}
+consul-hashicorp-sha-file:
+  file.managed:
+    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS
+    - source: https://releases.hashicorp.com/consul/{{ consul.version }}/consul_{{ consul.version }}_SHA256SUMS
+
+consul-hashicorp-sig-file:
+  file.managed:
+    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS.sig
+    - source: https://releases.hashicorp.com/consul/{{ consul.version }}/consul_{{ consul.version }}_SHA256SUMS.sig
+    - skip_verify: true
+    - require:
+      - file: consul-hashicorp-sha-file
+
+consul-hashicorp-key-file:
+  file.managed:
+    - name: /tmp/consul-hashicorp.asc
+    - source: salt://consul/files/consul-hashicorp.asc.jinja
+    - template: jinja
+
+consul-gpg-pkg:
+  pkg.installed:
+    - name: {{ consul.gpg_pkg }}
+
+consul-import-key:
+  cmd.run:
+    - name: gpg --import /tmp/consul-hashicorp.asc
+    - unless: gpg --list-keys {{ consul.hashicorp_key_id }}
+    - require:
+      - file: consul-hashicorp-key-file
+      - pkg: consul-gpg-pkg
+
+consul-verify-sha-sig:
+  cmd.run:
+    - name: gpg --verify /tmp/consul_{{ consul.version }}_SHA256SUMS.sig /tmp/consul_{{ consul.version }}_SHA256SUMS
+    - require:
+      - file: consul-hashicorp-sig-file
+      - file: consul-hashicorp-hash-file
+      - cmd: consul-import-key
+
+consul-hashicorp-key-file-clean:
+  file.absent:
+    - name: /tmp/consul-hashicorp.asc
+    - require:
+      - cmd: consul-verify-sha-sig
+
+consul-hashicorp-sig-file-clean:
+  file.absent:
+    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS.sig
+    - require:
+      - cmd: consul-verify-sha-sig
+
+consul-hashicorp-hash-file-clean:
+  file.absent:
+    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS
+    - require:
+      - cmd: consul-verify-sha-sig
+{% endif %}
+
 consul-extract:
   cmd.wait:
     - name: unzip /tmp/consul_{{ consul.version }}_linux_{{ consul.arch }}.zip -d /tmp
