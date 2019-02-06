@@ -97,21 +97,12 @@ consul-gpg-pkg:
   pkg.installed:
     - name: {{ consul.gpg_pkg }}
 
-consul-hashicorp-key-file-clean:
+consul-hashicorp-files-clean:
   file.absent:
-    - name: /tmp/consul-hashicorp.asc
-    - watch:
-      - cmd: consul-import-key
-
-consul-hashicorp-sig-file-clean:
-  file.absent:
-    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS.sig
-    - watch:
-      - cmd: consul-verify-sha-sig
-
-consul-hashicorp-sha-file-clean:
-  file.absent:
-    - name: /tmp/consul_{{ consul.version }}_SHA256SUMS
+    - names:
+      - /tmp/consul-hashicorp.asc
+      - /tmp/consul_{{ consul.version }}_SHA256SUMS.sig
+      - /tmp/consul_{{ consul.version }}_SHA256SUMS
     - watch:
       - cmd: consul-verify-sha-sig
 
